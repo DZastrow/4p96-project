@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import random
 import math
 from collections import namedtuple
+import load_experiments as le
+import os
+import time
 
 City = namedtuple("City", ["id", "x", "y"])
 
@@ -72,13 +75,17 @@ class AntColony:
     self.heuristic = 1/dist_matrix  # shorter distance = larger heuristic value
 
   def run(self):
+    print("Starting ACO optimization...")
+    start_time = time.time()
     best_length = float('inf')  # start with best_length set to infinite so that it can only go down
     best_path = None
     convergence = []
     for epoch in range(self.n_epochs):
+      # print("starting epoch", epoch+1)
       all_paths = []  # start each epoch with a fresh set of paths to be found
       all_lengths = []
       for _ in range(self.n_ants):
+        # print("  Ant", _+1, "is finding a path...")
         path = self.find_path()  # each ant looks for a path on its own
         length = self.path_length(path)
         all_paths.append(path)
@@ -90,7 +97,9 @@ class AntColony:
       convergence.append(best_length) # for graphing purposes
       print(f"Epoch {epoch+1}: Best = {best_length:.2f}")
       ##### probably put in some auto stop when it converges
-    return best_path, best_length, convergence
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    return best_path, best_length, convergence, elapsed_time
 
   def find_path(self):
     start = random.randint(0, self.n - 1) # every ant starts at a random city for more diverse exploration
@@ -151,28 +160,44 @@ def plot_convergence(convergence):
 
 
 
-def run_experiment(tsp_file, tour_file, n_ants, n_epochs, alpha, beta, evaporation):
-  cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
-  dist_matrix = compute_distance_matrix(cities)
-  aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
-  best_path, best_length, convergence = aco.run()
-  print("\n##### RESULTS #####")
-  print("Best path length:", best_length)
-  if tour_file: # if we have a known optimal path in a .tour file, compare our best path to that
-    optimal_tour = load_tour(tour_file)
-    optimal_path = [i - 1 for i in optimal_tour]
-    optimal_length = aco.path_length(optimal_path)
-    print("Optimal length:", optimal_length)
-    print("Error (%):", 100 * (best_length - optimal_length) / optimal_length)
-  plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
-  plot_convergence(convergence) # also graph the path distance over time
-  ##### should we measure calculation time?
+def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation):
+  for tsp_file, tour_file in experiments:
+    print(f"\nRunning experiment on {tsp_file} ...")
+    cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
+    print(f"Loaded {len(cities)} cities.")
+    dist_matrix = compute_distance_matrix(cities)
+    print("Distance matrix computed.")
+    aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
+    print("Running ACO...")
+    best_path, best_length, convergence, elapsed_time = aco.run()
 
+    print("\n##### RESULTS #####")
+    print("Best path length:", best_length)
+    print("Elapsed time (seconds): {:.2f}".format(elapsed_time))
+    if os.path.exists(tour_file):# if we have a known optimal path in a .tour file, compare our best path to that
+      optimal_tour = load_tour(tour_file)
+      optimal_path = [i - 1 for i in optimal_tour]
+      optimal_length = aco.path_length(optimal_path)
+      print("Optimal length:", optimal_length)
+      print("Error (%):", 100 * (best_length - optimal_length) / optimal_length)
+    else:
+      print("No optimal tour file found for comparison.")
 
+    #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
+    #plot_convergence(convergence) # also graph the path distance over time
+    
+    ##### should we measure calculation time?
 
+# tsp_file = "res/pr439.tsp"  ##### need to replace this with "go through the entire folder and do them all"
+# tour_file = "res/pr439.opt.tour"
 
+output_folder = "experiment_results"  # where we want to save the results of our experiments
+# make array of string names of all the .tsp files in the folder
 
-tsp_file = "att48.tsp"  ##### need to replace this with "go through the entire folder and do them all"
-tour_file = "att48.opt.tour"
+experiments = le.return_experiments() # get the list of experiments from load_experiments.py
+le.print_experiments(experiments) # print out the experiments so we can see what we're working with
 
-run_experiment(tsp_file, tour_file, 30, 150, 1.0, 5.0, 0.5)
+# to run single experiment:
+# experiments = [(tsp_file, tour_file)]
+run_experiment(experiments, 15, 5, 1.0, 5.0, 0.5)
+
