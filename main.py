@@ -18,32 +18,102 @@ def load_tsp(file_path):
   reading_coords = False
   for line in lines:
     line = line.strip() # clean whitespace
-    if line == "NODE_COORD_SECTION":  # the .tsp files are all denoted such that this marks the start of the cities
+    if line == "NODE_COORD_SECTION" or line == "DISPLAY_DATA_SECTION":  # the .tsp files are all denoted such that this marks the start of the cities
       reading_coords = True
       continue
     if line == "EOF": # self explanatory
       break
     if reading_coords:
       parts = line.split()  # split each line into its components: node, x_coord, y_coord
+      # If we hit another section header, stop reading
+      if len(parts) > 0 and not parts[0].isdigit():
+          reading_coords = False
+          continue
+      
       if len(parts) >= 3:
         cities.append(City(int(parts[0]), float(parts[1]), float(parts[2])))
   return cities
 
 def load_tour(file_path):
-  tour = []
-  with open(file_path, 'r') as f:
-    lines = f.readlines()
-  reading = False
-  for line in lines:  # pretty much the same as load_tsp
-    line = line.strip()
-    if line == "TOUR_SECTION":
-      reading = True
-      continue
-    if line == "-1":
-      break
-    if reading:
-      tour.append(int(line))
-  return tour
+    tour = []
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    
+    reading = False
+    for line in lines:
+        line = line.strip()
+        if not line: continue
+        
+        if line == "TOUR_SECTION":
+            reading = True
+            continue
+        if line == "-1" or line == "EOF":
+            break
+            
+        if reading:
+            # This is the key change: 
+            # Split the line by spaces in case there are multiple numbers
+            parts = line.split()
+            for part in parts:
+                if part == "-1": # Some files put -1 at the end of the line
+                    return tour
+                try:
+                    tour.append(int(part))
+                except ValueError:
+                    # Skip things that aren't numbers (like 'EOF')
+                    continue
+    return tour
+
+def load_tsp_flexible(file_path):
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+
+    info = {}
+    matrix_data = []
+    coords = []
+    reading_matrix = False
+    reading_coords = False
+
+    for line in lines:
+        line = line.strip()
+        if not line or line == "EOF": break
+
+        if ":" in line and not (reading_matrix or reading_coords):
+            key, val = line.split(":", 1)
+            info[key.strip()] = val.strip()
+            continue
+
+        if line == "EDGE_WEIGHT_SECTION":
+            reading_matrix = True
+            reading_coords = False
+            continue
+        if line in ["NODE_COORD_SECTION", "DISPLAY_DATA_SECTION"]:
+            reading_coords = True
+            reading_matrix = False
+            continue
+
+        parts = line.split()
+        if reading_matrix:
+            matrix_data.extend([float(x) for x in parts])
+        elif reading_coords and len(parts) >= 3:
+            coords.append(City(int(parts[0]), float(parts[1]), float(parts[2])))
+
+    # Logic to return what we found
+    if coords:
+        return "COORDS", coords
+    elif matrix_data:
+        # Reconstruct the matrix from the UPPER_ROW format
+        n = int(info['DIMENSION'])
+        dist_matrix = np.zeros((n, n))
+        idx = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                dist_matrix[i][j] = matrix_data[idx]
+                dist_matrix[j][i] = matrix_data[idx]
+                idx += 1
+        return "MATRIX", dist_matrix
+    
+    return None, None
 
 
 
@@ -177,11 +247,25 @@ def plot_convergence(convergence):
 
 def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation):
   for tsp_file, tour_file in experiments:
+    data_type, data = load_tsp_flexible(tsp_file)  
+
+    if data_type == "COORDS":
+        cities = data
+        dist_matrix = compute_distance_matrix(cities)
+    elif data_type == "MATRIX":
+        cities = None # No way to plot this!
+        dist_matrix = data
+    else:
+        print(f"Skipping {tsp_file}: Unsupported format.")
+        continue
+    
+
     print(f"\nRunning experiment on {tsp_file} ...")
-    cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
-    print(f"Loaded {len(cities)} cities.")
-    dist_matrix = compute_distance_matrix(cities)
-    print("Distance matrix computed.")
+    # cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
+    # print(f"Loaded {len(cities)} cities.")
+    # dist_matrix = compute_distance_matrix(cities)
+    # print("Distance matrix computed.")
+
     aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
     print("Running ACO...")
     best_path, best_length, convergence, elapsed_time = aco.run()
