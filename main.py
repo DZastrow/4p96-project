@@ -72,7 +72,9 @@ class AntColony:
     self.evaporation = evaporation # evap rate
     self.Q = Q  # strength of pheromone depositing
     self.pheromone = np.ones((self.n, self.n))  # initialize every path to the same pheromone level so there's nothing immediately preferred
-    self.heuristic = 1/dist_matrix  # shorter distance = larger heuristic value
+    
+    # 1e-10 gets rid of the divide by zero error when we take the inverse of the distance matrix to get the heuristic. 
+    self.heuristic = 1.0 / (dist_matrix + 1e-10)  # shorter distance = larger heuristic value
 
   def run(self):
     print("Starting ACO optimization...")
@@ -80,6 +82,8 @@ class AntColony:
     best_length = float('inf')  # start with best_length set to infinite so that it can only go down
     best_path = None
     convergence = []
+    patience = 20 # stops early if we haven't improvement in 20 epochs
+    no_imrov = 0 # patience counter
     for epoch in range(self.n_epochs):
       # print("starting epoch", epoch+1)
       all_paths = []  # start each epoch with a fresh set of paths to be found
@@ -93,6 +97,13 @@ class AntColony:
         if length < best_length:  # is the path better? keep it
           best_length = length
           best_path = path
+          no_imrov = 0 # reset patience counter if we find a new best path
+        else:
+          no_imrov += 1 # increment patience counter if we don't find a new best path
+          if no_imrov >= patience:
+            print(f"No improvement in {patience} epochs. Stopping early at epoch {epoch+1}.")
+            break
+          
       self.update_pheromones(all_paths, all_lengths)  # have to evaporate all and re-apply on the traveled paths
       convergence.append(best_length) # for graphing purposes
       print(f"Epoch {epoch+1}: Best = {best_length:.2f}")
