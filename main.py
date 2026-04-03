@@ -84,6 +84,7 @@ class AntColony:
     convergence = []
     patience = 20 # stops early if we haven't improvement in 20 epochs
     no_imrov = 0 # patience counter
+    found_new_best = False # flag to track if we found a new best path in the current epoch
     for epoch in range(self.n_epochs):
       # print("starting epoch", epoch+1)
       all_paths = []  # start each epoch with a fresh set of paths to be found
@@ -97,17 +98,20 @@ class AntColony:
         if length < best_length:  # is the path better? keep it
           best_length = length
           best_path = path
-          no_imrov = 0 # reset patience counter if we find a new best path
-        else:
-          no_imrov += 1 # increment patience counter if we don't find a new best path
-          if no_imrov >= patience:
-            print(f"No improvement in {patience} epochs. Stopping early at epoch {epoch+1}.")
-            break
-          
+          found_new_best = True
+      if found_new_best:
+        no_imrov = 0  # reset patience counter if we found a new best path
+        found_new_best = False  # reset flag for the next epoch
+      else:
+        no_imrov += 1  # increment patience counter if we didn't find a new best path
+
       self.update_pheromones(all_paths, all_lengths)  # have to evaporate all and re-apply on the traveled paths
       convergence.append(best_length) # for graphing purposes
       print(f"Epoch {epoch+1}: Best = {best_length:.2f}")
       ##### probably put in some auto stop when it converges
+      if no_imrov >= patience:
+        print(f"No improvement in {patience} epochs, stopping early.")
+        break
     end_time = time.time()
     elapsed_time = end_time - start_time
     return best_path, best_length, convergence, elapsed_time
@@ -205,10 +209,10 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation):
 output_folder = "experiment_results"  # where we want to save the results of our experiments
 # make array of string names of all the .tsp files in the folder
 
-experiments = le.return_experiments() # get the list of experiments from load_experiments.py
+experiments = le.return_experiments_with_tours() # get the list of experiments from load_experiments.py
 le.print_experiments(experiments) # print out the experiments so we can see what we're working with
 
 # to run single experiment:
 # experiments = [(tsp_file, tour_file)]
-run_experiment(experiments, 15, 5, 1.0, 5.0, 0.5)
+run_experiment(experiments, 30, 100, 1.0, 5.0, 0.5)
 
