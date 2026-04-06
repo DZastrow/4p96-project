@@ -245,7 +245,11 @@ def plot_convergence(convergence):
 
 
 
-def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation):
+def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_trials):
+  
+  # save results to calculate averages and such later on
+  all_summary_results = []
+  
   for tsp_file, tour_file in experiments:
     data_type, data = load_tsp_flexible(tsp_file)  
 
@@ -259,36 +263,60 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation):
         print(f"Skipping {tsp_file}: Unsupported format.")
         continue
     
-
-    print(f"\nRunning experiment on {tsp_file} ...")
-    # cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
-    # print(f"Loaded {len(cities)} cities.")
-    # dist_matrix = compute_distance_matrix(cities)
-    # print("Distance matrix computed.")
-
-    aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
-    print("Running ACO...")
-    best_path, best_length, convergence, elapsed_time = aco.run()
-
-    print("\n##### RESULTS #####")
-    print("Best path length:", best_length)
-    print("Elapsed time (seconds): {:.2f}".format(elapsed_time))
-    if os.path.exists(tour_file):# if we have a known optimal path in a .tour file, compare our best path to that
-      optimal_tour = load_tour(tour_file)
-      optimal_path = [i - 1 for i in optimal_tour]
-      optimal_length = aco.path_length(optimal_path)
-      print("Optimal length:", optimal_length)
-      print("Error (%):", 100 * (best_length - optimal_length) / optimal_length)
-    else:
-      print("No optimal tour file found for comparison.")
-
-    #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
-    #plot_convergence(convergence) # also graph the path distance over time
+    trial_lengths = []
+    trial_times = []
+    trial_errors = []
+    trial_convergences = []
     
-    ##### should we measure calculation time?
+    for i in range(num_trials):
+      print(f"\nRunning experiment on {tsp_file} ...")
+      # cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
+      # print(f"Loaded {len(cities)} cities.")
+      # dist_matrix = compute_distance_matrix(cities)
+      # print("Distance matrix computed.")
 
-# tsp_file = "res/pr439.tsp"  ##### need to replace this with "go through the entire folder and do them all"
-# tour_file = "res/pr439.opt.tour"
+      aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
+      print("Running ACO...")
+      best_path, best_length, convergence, elapsed_time = aco.run()
+
+      trial_lengths.append(best_length)
+      trial_times.append(elapsed_time)
+      trial_convergences.append(convergence)
+
+      print("\n##### RESULTS #####")
+      print("Best path length:", best_length)
+      print("Elapsed time (seconds): {:.2f}".format(elapsed_time))
+      if os.path.exists(tour_file):# if we have a known optimal path in a .tour file, compare our best path to that
+        optimal_tour = load_tour(tour_file)
+        optimal_path = [i - 1 for i in optimal_tour]
+        optimal_length = aco.path_length(optimal_path)
+        error =  100 * (best_length - optimal_length) / optimal_length
+        trial_errors.append(error)
+
+        print("Optimal length:", optimal_length)
+        print("Error (%):", error)
+      else:
+        print("No optimal tour file found for comparison.")
+
+      # calculate summary results for this experiment
+      all_summary_results[tsp_file] = {
+        "average_length": np.mean(trial_lengths),
+        "average_time": np.mean(trial_times),
+        "average_error": np.mean(trial_errors) if trial_errors else None,
+        "average_convergence": np.mean(trial_convergences, axis=0) if trial_convergences else None,
+        "best_length": best_length,
+        "best_path": best_path,
+        "optimal_length": optimal_length if os.path.exists(tour_file) else None
+      }
+
+      #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
+      #plot_convergence(convergence) # also graph the path distance over time
+      print(f"done Avg Length: {all_summary_results[tsp_file]['avg_length']:.2f}")
+      return all_summary_results
+      
+
+tsp_file = tour_file = r"res\berlin52.tsp"  ##### need to replace this with "go through the entire folder and do them all"
+tour_file = r"res\berlin52.opt.tour"
 
 output_folder = "experiment_results"  # where we want to save the results of our experiments
 # make array of string names of all the .tsp files in the folder
@@ -297,6 +325,21 @@ experiments = le.return_experiments_with_tours() # get the list of experiments f
 le.print_experiments(experiments) # print out the experiments so we can see what we're working with
 
 # to run single experiment:
-# experiments = [(tsp_file, tour_file)]
-run_experiment(experiments, 30, 100, 1.0, 5.0, 0.5)
+experiments = [(tsp_file, tour_file)]
+
+
+all_results = run_experiment(experiments, 30, 150, 1.0, 5.0, 0.5, 10)
+
+for tsp_file, results in all_results.items():
+  print(f"\nSummary for {tsp_file}:")
+  print(f"Average Length: {results['average_length']:.2f}")
+  print(f"Average Time: {results['average_time']:.2f} seconds")
+  if results['average_error'] is not None:
+    print(f"Average Error: {results['average_error']:.2f}%")
+  else:
+    print("Average Error: N/A (no optimal tour for comparison)")
+  print(f"Average Convergence: {results['average_convergence']:.2f}")
+  print(f"Best Length: {results['best_length']:.2f}")
+  if results['optimal_length'] is not None:
+    print(f"Optimal Length: {results['optimal_length']:.2f}")
 
