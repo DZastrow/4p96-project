@@ -248,7 +248,7 @@ def plot_convergence(convergence):
 def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_trials):
   
   # save results to calculate averages and such later on
-  all_summary_results = []
+  all_summary_results = {}
   
   for tsp_file, tour_file in experiments:
     data_type, data = load_tsp_flexible(tsp_file)  
@@ -311,7 +311,7 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
 
       #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
       #plot_convergence(convergence) # also graph the path distance over time
-      print(f"done Avg Length: {all_summary_results[tsp_file]['avg_length']:.2f}")
+      print(f"done Avg Length: {all_summary_results[tsp_file]['average_length']:.2f}")
       return all_summary_results
       
 
@@ -338,7 +338,7 @@ for tsp_file, results in all_results.items():
     print(f"Average Error: {results['average_error']:.2f}%")
   else:
     print("Average Error: N/A (no optimal tour for comparison)")
-  print(f"Average Convergence: {results['average_convergence']:.2f}")
+  print(f"Average Convergence (Final): {results['average_convergence'][-1]:.2f}")
   print(f"Best Length: {results['best_length']:.2f}")
   if results['optimal_length'] is not None:
     print(f"Optimal Length: {results['optimal_length']:.2f}")
