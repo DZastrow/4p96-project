@@ -118,7 +118,9 @@ def load_tsp_flexible(file_path):
 
 
 def euclidean_distance(c1, c2):
-  return math.sqrt((c1.x - c2.x)**2 + (c1.y - c2.y)**2)
+    # TSPLIB standard: round to the nearest integer
+    d = math.sqrt((c1.x - c2.x)**2 + (c1.y - c2.y)**2)
+    return int(d + 0.5)
 
 def compute_distance_matrix(cities):  # calculate the distances between each point
   n = len(cities)
@@ -288,15 +290,7 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
       trial_convergences.append(convergence)
       trial_discovery_epochs.append(discovery_epoch)
 
-      # 1. Find the maximum length any trial reached
-      max_len = max(len(c) for c in trial_convergences)
 
-      # 2. Pad shorter trials with their last known best value
-      padded_convergences = []
-      for c in trial_convergences:
-          # If c is shorter than max_len, extend it with its last element
-          padding = [c[-1]] * (max_len - len(c))
-          padded_convergences.append(c + padding)
 
 
 
@@ -315,26 +309,32 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
       else:
         print("No optimal tour file found for comparison.")
 
-      # calculate summary results for this experiment
-      all_summary_results[tsp_file] = {
-        "average_length": np.mean(trial_lengths),
-        "average_time": np.mean(trial_times),
-        "average_error": np.mean(trial_errors) if trial_errors else None,
-        "average_convergence": np.mean(padded_convergences, axis=0),
-        "best_length": best_length,
-        "best_path": best_path,
-        "optimal_length": optimal_length if os.path.exists(tour_file) else None,
-        "discovery_epoch": np.mean(trial_discovery_epochs)
-      }
+    max_len = max(len(c) for c in trial_convergences)
+
+    padded_convergences = []
+    for c in trial_convergences:
+        padding = [c[-1]] * (max_len - len(c))
+        padded_convergences.append(c + padding)
+
+  # calculate summary results for this experiment
+  all_summary_results[tsp_file] = {
+    "average_length": np.mean(trial_lengths),
+    "average_time": np.mean(trial_times),
+    "average_convergence": np.mean(padded_convergences, axis=0),
+    "best_length": best_length,
+    "best_path": best_path,
+    "optimal_length": optimal_length if os.path.exists(tour_file) else None,
+    "discovery_epoch": np.mean(trial_discovery_epochs)
+  }
 
       #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
       #plot_convergence(convergence) # also graph the path distance over time
-    print(f"done Avg Length: {all_summary_results[tsp_file]['average_length']:.2f}")
-    return all_summary_results
+  print(f"done Avg Length: {all_summary_results[tsp_file]['average_length']:.2f}")
+  return all_summary_results
       
 
-tsp_file = tour_file = r"res\berlin52.tsp"  ##### need to replace this with "go through the entire folder and do them all"
-tour_file = r"res\berlin52.opt.tour"
+tsp_file = tour_file = r"res\gr202.tsp"  ##### need to replace this with "go through the entire folder and do them all"
+tour_file = r"res\gr202.opt.tour"
 
 output_folder = "experiment_results"  # where we want to save the results of our experiments
 # make array of string names of all the .tsp files in the folder
@@ -352,10 +352,6 @@ for tsp_file, results in all_results.items():
   print(f"\nSummary for {tsp_file}:")
   print(f"Average Length: {results['average_length']:.2f}")
   print(f"Average Time: {results['average_time']:.2f} seconds")
-  if results['average_error'] is not None:
-    print(f"Average Error: {results['average_error']:.2f}%")
-  else:
-    print("Average Error: N/A (no optimal tour for comparison)")
   print(f"Average Convergence (Final): {results['average_convergence'][-1]:.2f}")
   print(f"Best Length: {results['best_length']:.2f}")
   if results['optimal_length'] is not None:
