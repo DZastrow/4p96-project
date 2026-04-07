@@ -152,8 +152,9 @@ class AntColony:
     best_length = float('inf')  # start with best_length set to infinite so that it can only go down
     best_path = None
     convergence = []
-    patience = 20 # stops early if we haven't improvement in 20 epochs
+    patience = 30 # stops early if we haven't improvement in 20 epochs
     no_imrov = 0 # patience counter
+    discovery_epoch = 0 # epoch at which we found the best path, for analysis purposes
     found_new_best = False # flag to track if we found a new best path in the current epoch
     for epoch in range(self.n_epochs):
       # print("starting epoch", epoch+1)
@@ -169,6 +170,7 @@ class AntColony:
           best_length = length
           best_path = path
           found_new_best = True
+          discovery_epoch = epoch + 1 # record when we found this new best path
       if found_new_best:
         no_imrov = 0  # reset patience counter if we found a new best path
         found_new_best = False  # reset flag for the next epoch
@@ -184,7 +186,7 @@ class AntColony:
         break
     end_time = time.time()
     elapsed_time = end_time - start_time
-    return best_path, best_length, convergence, elapsed_time
+    return best_path, best_length, convergence, elapsed_time, discovery_epoch
 
   def find_path(self):
     start = random.randint(0, self.n - 1) # every ant starts at a random city for more diverse exploration
@@ -267,9 +269,11 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
     trial_times = []
     trial_errors = []
     trial_convergences = []
+    trial_discovery_epochs = []
     
     for i in range(num_trials):
       print(f"\nRunning experiment on {tsp_file} ...")
+      print(f"Trial {i+1}/{num_trials}")
       # cities = load_tsp(tsp_file) # read the .tsp file and construct the list of cities
       # print(f"Loaded {len(cities)} cities.")
       # dist_matrix = compute_distance_matrix(cities)
@@ -277,11 +281,24 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
 
       aco = AntColony(dist_matrix, n_ants, n_epochs, alpha, beta, evaporation, 100)
       print("Running ACO...")
-      best_path, best_length, convergence, elapsed_time = aco.run()
+      best_path, best_length, convergence, elapsed_time, discovery_epoch = aco.run()
 
       trial_lengths.append(best_length)
       trial_times.append(elapsed_time)
       trial_convergences.append(convergence)
+      trial_discovery_epochs.append(discovery_epoch)
+
+      # 1. Find the maximum length any trial reached
+      max_len = max(len(c) for c in trial_convergences)
+
+      # 2. Pad shorter trials with their last known best value
+      padded_convergences = []
+      for c in trial_convergences:
+          # If c is shorter than max_len, extend it with its last element
+          padding = [c[-1]] * (max_len - len(c))
+          padded_convergences.append(c + padding)
+
+
 
       print("\n##### RESULTS #####")
       print("Best path length:", best_length)
@@ -303,16 +320,17 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
         "average_length": np.mean(trial_lengths),
         "average_time": np.mean(trial_times),
         "average_error": np.mean(trial_errors) if trial_errors else None,
-        "average_convergence": np.mean(trial_convergences, axis=0) if trial_convergences else None,
+        "average_convergence": np.mean(padded_convergences, axis=0),
         "best_length": best_length,
         "best_path": best_path,
-        "optimal_length": optimal_length if os.path.exists(tour_file) else None
+        "optimal_length": optimal_length if os.path.exists(tour_file) else None,
+        "discovery_epoch": np.mean(trial_discovery_epochs)
       }
 
       #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
       #plot_convergence(convergence) # also graph the path distance over time
-      print(f"done Avg Length: {all_summary_results[tsp_file]['average_length']:.2f}")
-      return all_summary_results
+    print(f"done Avg Length: {all_summary_results[tsp_file]['average_length']:.2f}")
+    return all_summary_results
       
 
 tsp_file = tour_file = r"res\berlin52.tsp"  ##### need to replace this with "go through the entire folder and do them all"
@@ -328,7 +346,7 @@ le.print_experiments(experiments) # print out the experiments so we can see what
 experiments = [(tsp_file, tour_file)]
 
 
-all_results = run_experiment(experiments, 30, 150, 1.0, 5.0, 0.5, 10)
+all_results = run_experiment(experiments, 50, 150, 1.0, 5.0, 0.5, 10)
 
 for tsp_file, results in all_results.items():
   print(f"\nSummary for {tsp_file}:")
@@ -342,4 +360,5 @@ for tsp_file, results in all_results.items():
   print(f"Best Length: {results['best_length']:.2f}")
   if results['optimal_length'] is not None:
     print(f"Optimal Length: {results['optimal_length']:.2f}")
+  print(f"Average Discovery Epoch: {results['discovery_epoch']:.2f}")
 
