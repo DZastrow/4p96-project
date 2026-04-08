@@ -6,6 +6,7 @@ from collections import namedtuple
 import load_experiments as le
 import os
 import time
+import seaborn as sns
 
 City = namedtuple("City", ["id", "x", "y"])
 
@@ -154,7 +155,7 @@ class AntColony:
     best_length = float('inf')  # start with best_length set to infinite so that it can only go down
     best_path = None
     convergence = []
-    patience = 30 # stops early if we haven't improvement in 20 epochs
+    patience = 200 # stops early if we haven't improvement in 20 epochs
     no_imrov = 0 # patience counter
     discovery_epoch = 0 # epoch at which we found the best path, for analysis purposes
     found_new_best = False # flag to track if we found a new best path in the current epoch
@@ -186,6 +187,10 @@ class AntColony:
       if no_imrov >= patience:
         print(f"No improvement in {patience} epochs, stopping early.")
         break
+
+      if (epoch + 1) % 10 == 0 or epoch == 1:
+        plot_pheromone_heatmap(self.pheromone, epoch+1, os.path.basename(tsp_file).split('.')[0])
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     return best_path, best_length, convergence, elapsed_time, discovery_epoch
@@ -229,7 +234,10 @@ class AntColony:
         self.pheromone[a][b] += self.Q / length # deposit pheromone based on path length; we don't really want other ants going down long paths too often
         self.pheromone[b][a] += self.Q / length
 
-
+def calculate_mre(trial_results, optimal_value):
+    mean_length = np.mean(trial_results)
+    mre = ((mean_length - optimal_value) / optimal_value) * 100
+    return mre
 
 def plot_tour(cities, path, title="Tour"):
   x = [cities[i].x for i in path] + [cities[path[0]].x]
@@ -246,6 +254,19 @@ def plot_convergence(convergence):
   plt.xlabel("Epoch")
   plt.ylabel("Path Length")
   plt.show()
+
+def plot_pheromone_heatmap(pheromone_matrix, iteration, instance_name):
+  plt.figure(figsize=(10,8))
+
+  ax = sns.heatmap(pheromone_matrix, cmap="YlGnBu", robust=True)
+
+  plt.title(f"Pheromone Heatmap - {instance_name} - Iteration {iteration}")
+  plt.xlabel("City Index")
+  plt.ylabel("City Index")
+
+  plt.savefig(f"pheromone_heatmap_{instance_name}_iter{iteration}.png", dpi=300)
+  print(f"Saved pheromone heatmap for {instance_name} iteration {iteration}")
+  plt.close()
 
 
 
@@ -309,6 +330,9 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
       else:
         print("No optimal tour file found for comparison.")
 
+
+
+
     max_len = max(len(c) for c in trial_convergences)
 
     padded_convergences = []
@@ -316,15 +340,18 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
         padding = [c[-1]] * (max_len - len(c))
         padded_convergences.append(c + padding)
 
+    
+  
   # calculate summary results for this experiment
   all_summary_results[tsp_file] = {
     "average_length": np.mean(trial_lengths),
     "average_time": np.mean(trial_times),
     "average_convergence": np.mean(padded_convergences, axis=0),
-    "best_length": best_length,
+    "best_length": np.min(trial_lengths),
     "best_path": best_path,
     "optimal_length": optimal_length if os.path.exists(tour_file) else None,
-    "discovery_epoch": np.mean(trial_discovery_epochs)
+    "discovery_epoch": np.mean(trial_discovery_epochs),
+    "standard_deviation_length": np.std(trial_lengths)
   }
 
       #plot_tour(cities, best_path, f"{tsp_file} - ACO Best Path") # graph the best found path
@@ -333,8 +360,8 @@ def run_experiment(experiments, n_ants, n_epochs, alpha, beta, evaporation, num_
   return all_summary_results
       
 
-tsp_file = tour_file = r"res\gr202.tsp"  ##### need to replace this with "go through the entire folder and do them all"
-tour_file = r"res\gr202.opt.tour"
+tsp_file = tour_file = r"res\burma14.tsp"  ##### need to replace this with "go through the entire folder and do them all"
+tour_file = r"res\burma14.opt.tour"
 
 output_folder = "experiment_results"  # where we want to save the results of our experiments
 # make array of string names of all the .tsp files in the folder
@@ -346,7 +373,7 @@ le.print_experiments(experiments) # print out the experiments so we can see what
 experiments = [(tsp_file, tour_file)]
 
 
-all_results = run_experiment(experiments, 50, 150, 1.0, 5.0, 0.5, 10)
+all_results = run_experiment(experiments, 10, 100, 1.0, 2.0, 0.9, 1)
 
 for tsp_file, results in all_results.items():
   print(f"\nSummary for {tsp_file}:")
@@ -357,4 +384,15 @@ for tsp_file, results in all_results.items():
   if results['optimal_length'] is not None:
     print(f"Optimal Length: {results['optimal_length']:.2f}")
   print(f"Average Discovery Epoch: {results['discovery_epoch']:.2f}")
+  print(f"Standard Deviation of Lengths: {results['standard_deviation_length']:.2f}")
+  mre = calculate_mre([results['average_length']], results['optimal_length']) if results['optimal_length'] is not None else None
+  if mre is not None:
+    print(f"Mean Relative Error (MRE): {mre:.2f}%")
 
+  #print single line in this format:Instance & Best & Avg. Len. & Std. Dev. & Optimal MRE(%) & Time (s) & Conv. Iter
+  #for table in the paper
+  #print(f"{tsp_file} & {results['best_length']:.2f} & {results['average_length']:.2f} & {results['standard_deviation_length']:.2f} & {results['optimal_length']:.2f} & {mre:.2f}\% & {results['average_time']:.2f} & {results['discovery_epoch']:.2f} \\")
+
+  #print single line in this format: Avg. Len S.D. MRE (%)
+  #for the paper
+  #print(f"{results['average_length']:.2f} & {results['standard_deviation_length']:.2f} & {mre:.2f}\% \\\\")
