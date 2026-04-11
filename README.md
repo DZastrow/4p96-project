@@ -17,3 +17,6 @@ be tested to observe their effect on convergence speed and final path length. Th
 across multiple TSP instances to evaluate best path lengths obtained, average path lengths across runs, and
 convergence behavior over time; performances will be compared against best known solutions where they are
 available.
+
+main.py is the entirety of the code; all functions can be performed from within it.
+res/ contains the entirety of the TSPLib dataset, and is what main.py pulls its data files from. 
