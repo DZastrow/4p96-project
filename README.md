@@ -19,4 +19,5 @@ convergence behavior over time; performances will be compared against best known
 available.
 
 main.py is the entirety of the code; all functions can be performed from within it.
+
 res/ contains the entirety of the TSPLib dataset, and is what main.py pulls its data files from. 
